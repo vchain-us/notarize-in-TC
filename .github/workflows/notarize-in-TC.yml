@@ -1,17 +1,13 @@
-name: Notarize repository with cas and vcn
-
+name: 'Notarize repository in Trustcenter'
 on:
   workflow_call:
-    secrets:
-      cas-api-key:
-        description: 'The signer key for cas.'
+    inputs:
+      tc_host:
+        description: 'TC host.'
         required: true
-      vcn-api-key:
-        description: 'The signer key for vcn.'
-        required: true
-      vcn-host:
-        description: 'The host for vcn.'
-        required: true
+      tc_api_key:
+        description: 'TC API key.'
+        required: false
 
 jobs:
   notarize-repository:
@@ -35,23 +31,23 @@ jobs:
           chmod +x vcn
 
       - name: Notarize git repository with vcn
-        run: ./vcn n git://$GITHUB_WORKSPACE --bom
+        run: ./vcn n git://$GITHUB_WORKSPACE --bom --lc-host ${{inputs.tc_host}} --lc-api-key ${{inputs.tc_api_key}}
 
       - name: Notarize git repository directory with vcn
-        run: ./vcn n dir://$GITHUB_WORKSPACE
+        run: ./vcn n dir://$GITHUB_WORKSPACE --lc-host ${{inputs.tc_host}} --lc-api-key ${{inputs.tc_api_key}}
 
       - name: Save bom file
-        run: ./vcn bom --bom-cdx-json $GITHUB_WORKSPACE.cdx
+        run: ./vcn bom git://$GITHUB_WORKSPACE --bom-cdx-json $GITHUB_WORKSPACE.cdx --lc-host ${{inputs.tc_host}} --lc-api-key ${{inputs.tc_api_key}}
       
       - name: Notarize via ingest pipeline
-        run: >
+        run: |
           curl --fail -X 'POST' \
-          'https://$VCN_LC_HOST/dataservice/api/v1/sbom' \
+          'https://${{inputs.tc_host}}/dataservice/api/v1/sbom' \
           -H 'accept: application/json' \
           -H 'X-Content-Type: application/vnd.cyclonedx+json' \
-          -H 'X-API-KEY: $TC_API_KEY' \
+          -H 'X-API-KEY: ${{inputs.tc_api_key}}' \
           -H 'Content-Type: application/octet-stream'  \
-          --data-binary '@$GITHUB_WORKSPACE.cdx'
+          --data-binary '@$GITHUB_WORKSPACE.cdx' || true
           if [ $? -ne 0 ]; then
             echo "Curl command failed"
           fi
