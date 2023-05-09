@@ -4,18 +4,17 @@ on:
     inputs:
       tc_host:
         description: 'TC host.'
+        type: string
         required: true
       tc_api_key:
         description: 'TC API key.'
+        type: string
         required: false
 
 jobs:
   notarize-repository:
     name: Notarize repository
     runs-on: [self-hosted, linux]
-    env:
-      VCN_LC_HOST: ${{ secrets.VCN_LC_HOST }}
-      TC_API_KEY: ${{ secrets.TC_API_KEY }}
     steps:
       - name: 'Cleanup build folder'
         run: |
