@@ -18,10 +18,8 @@ jobs:
     name: Notarize repository
     runs-on: [self-hosted, linux]
     env:
-      CAS_HOST: cas.codenotary.com
-      CAS_API_KEY: ${{ secrets.cas-api-key }}
-      VCN_LC_HOST: ${{ secrets.vcn-host }}
-      VCN_LC_API_KEY: ${{ secrets.vcn-api-key }}
+      VCN_LC_HOST: ${{ secrets.VCN_LC_HOST }}
+      TC_API_KEY: ${{ secrets.TC_API_KEY }}
     steps:
       - name: 'Cleanup build folder'
         run: |
@@ -30,24 +28,6 @@ jobs:
 
       - name: Checkout repository
         uses: actions/checkout@v3
-
-      - name: Get latest released cas version
-        id: cas-version
-        run: >
-          echo "::set-output name=latest::$(
-          curl -s -H 'Accept: application/vnd.github+json'
-          -H 'Authorization: token ${{ secrets.GITHUB_TOKEN }}'
-          https://api.github.com/repos/codenotary/cas/releases/latest | jq -r '.name'
-          )"
-
-      - name: Download cas
-        run: |
-          curl -s -o cas -L https://github.com/codenotary/cas/releases/download/${{ steps.cas-version.outputs.latest }}/cas-${{ steps.cas-version.outputs.latest }}-linux-amd64-static
-          chmod +x cas
-
-      # Notarize only repository as cas cannot notarize the directory
-      - name: Notarize git repository with cas
-        run: ./cas n git://$GITHUB_WORKSPACE
 
       - name: Download vcn
         run: |
@@ -59,3 +39,22 @@ jobs:
 
       - name: Notarize git repository directory with vcn
         run: ./vcn n dir://$GITHUB_WORKSPACE
+
+      - name: Save bom file
+        run: ./vcn bom --bom-cdx-json $GITHUB_WORKSPACE.cdx
+      
+      - name: Notarize via ingest pipeline
+        run: >
+          curl --fail -X 'POST' \
+          'https://$VCN_LC_HOST/dataservice/api/v1/sbom' \
+          -H 'accept: application/json' \
+          -H 'X-Content-Type: application/vnd.cyclonedx+json' \
+          -H 'X-API-KEY: $TC_API_KEY' \
+          -H 'Content-Type: application/octet-stream'  \
+          --data-binary '@$GITHUB_WORKSPACE.cdx'
+          if [ $? -ne 0 ]; then
+            echo "Curl command failed"
+          fi
+          exit 0
+
+
